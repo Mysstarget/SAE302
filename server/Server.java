@@ -18,6 +18,12 @@ new DatagramPacket(buffer, buffer.length);
 socket.receive(packet) ;
 s = new String(packet.getData(), 0, packet.getLength(), "UTF-8");
 System.out.println(s) ;
+
+//
+            String username = ConnectUser.getUsername(s);
+
+            System.out.println("Utilisateur : " + username);
+
 }
 }
 }
