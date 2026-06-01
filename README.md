@@ -57,7 +57,7 @@ Exemples d’attributs possibles :
 
 | Attribut        | Utilité                                                                           |
 | --------------- | --------------------------------------------------------------------------------- |
-| `id_user`       | Identifiant de l’utilisateur                                                      |
+| `U_Id_user`       | Identifiant de l’utilisateur                                                      |
 | `username`      | Nom d’utilisateur                                                                 |
 | `password` | Mot de passe                                                               |
 | `is_deleted`    | Permet de désactiver un utilisateur sans supprimer directement toutes les données |
@@ -66,8 +66,8 @@ Exemples d’attributs possibles :
 
 | Attribut   | Utilité                                    |
 | ---------- | ------------------------------------------ |
-| `src_user` | Utilisateur qui envoie la demande          |
-| `dst_user` | Utilisateur qui reçoit la demande          |
+| `F_src_user` | Utilisateur qui envoie la demande          |
+| `F_dst_user` | Utilisateur qui reçoit la demande          |
 | `status`   | `PENDING`, `ACCEPTED`, `REFUSED`           |
 | `seen_src` | Indique si l’émetteur a vu la réponse      |
 | `seen_dst` | Indique si le destinataire a vu la demande |
