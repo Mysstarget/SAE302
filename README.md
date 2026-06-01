@@ -59,7 +59,7 @@ Exemples d’attributs possibles :
 | --------------- | --------------------------------------------------------------------------------- |
 | `id_user`       | Identifiant de l’utilisateur                                                      |
 | `username`      | Nom d’utilisateur                                                                 |
-| `password_hash` | Mot de passe hashé                                                                |
+| `password` | Mot de passe                                                               |
 | `is_deleted`    | Permet de désactiver un utilisateur sans supprimer directement toutes les données |
 
 ### Table `Friend`
