@@ -1,40 +1,142 @@
-# SAE302 — Méthodes du protocole
+# SAE302 — Méthodes du protocole client/serveur
 
-## Codes serveur utilisés
+## Principe général
 
-* `200` : succès / opération réussie
-* `201` : création réussie
-* `400` : requête invalide / caractères spéciaux refusés
-* `401` : mauvais mot de passe
-* `402` : erreur lors de la récupération des données
-* `404` : utilisateur, groupe ou ressource inexistante
-* `405` : erreur serveur lors de la création, suppression, stockage ou mise à jour
-* `409` : conflit, ressource déjà existante
+Le protocole fonctionne avec des échanges simples en CSV.
+
+Le client envoie une commande au serveur :
+
+```txt
+Commande,parametre1,parametre2,parametre3
+```
+
+Le serveur traite la demande, vérifie les données, modifie si besoin la base de données, puis renvoie une réponse au client :
+
+```txt
+Code,Type,Message
+```
+
+Exemple :
+
+```txt
+201,CREATE_USER,Utilisateur créé
+```
+
+ou
+
+```txt
+404,CONNECT,Utilisateur inexistant
+```
+
+---
+
+## Codes utilisés
+
+| Code  | Signification                              |
+| ----- | ------------------------------------------ |
+| `200` | Succès                                     |
+| `201` | Création réussie                           |
+| `400` | Requête invalide                           |
+| `401` | Mauvais mot de passe ou accès refusé       |
+| `402` | Erreur lors de la récupération des données |
+| `404` | Ressource inexistante                      |
+| `405` | Erreur serveur / erreur base de données    |
+| `409` | Conflit, ressource déjà existante          |
+
+---
+
+## Gestion des mises à jour sans table `update`
+
+Pour éviter d’utiliser une table `update`, les informations à envoyer au client sont retrouvées directement grâce à des attributs dans les tables existantes.
+
+Exemples d’attributs possibles :
+
+### Table `User`
+
+| Attribut        | Utilité                                                                           |
+| --------------- | --------------------------------------------------------------------------------- |
+| `id_user`       | Identifiant de l’utilisateur                                                      |
+| `username`      | Nom d’utilisateur                                                                 |
+| `password_hash` | Mot de passe hashé                                                                |
+| `is_deleted`    | Permet de désactiver un utilisateur sans supprimer directement toutes les données |
+
+### Table `Friend`
+
+| Attribut   | Utilité                                    |
+| ---------- | ------------------------------------------ |
+| `src_user` | Utilisateur qui envoie la demande          |
+| `dst_user` | Utilisateur qui reçoit la demande          |
+| `status`   | `PENDING`, `ACCEPTED`, `REFUSED`           |
+| `seen_src` | Indique si l’émetteur a vu la réponse      |
+| `seen_dst` | Indique si le destinataire a vu la demande |
+
+### Table `Message`
+
+| Attribut    | Utilité                                                 |
+| ----------- | ------------------------------------------------------- |
+| `id_msg`    | Identifiant du message                                  |
+| `src_user`  | Utilisateur qui envoie le message                       |
+| `dst_user`  | Destinataire si message privé                           |
+| `dst_group` | Groupe si message de groupe                             |
+| `type`      | `PRIVATE` ou `GROUP`                                    |
+| `content`   | Contenu du message                                      |
+| `delivered` | Indique si le message privé a déjà été envoyé au client |
+| `read`      | Indique si le message a été lu                          |
+
+### Table `Group`
+
+| Attribut     | Utilité               |
+| ------------ | --------------------- |
+| `id_group`   | Identifiant du groupe |
+| `group_name` | Nom du groupe         |
+| `owner`      | Créateur du groupe    |
+
+### Table `Group_Member`
+
+| Attribut           | Utilité                                          |
+| ------------------ | ------------------------------------------------ |
+| `id_group`         | Groupe concerné                                  |
+| `id_user`          | Membre du groupe                                 |
+| `role`             | `OWNER`, `ADMIN`, `MEMBER`                       |
+| `seen_join`        | Indique si l’utilisateur a vu qu’il a été ajouté |
+| `last_seen_msg_id` | Dernier message de groupe reçu par l’utilisateur |
+
+L’appel `Update` du client permet donc au serveur de chercher directement :
+
+* les messages privés avec `delivered = 0`
+* les demandes d’amis avec `status = PENDING` et `seen_dst = 0`
+* les réponses aux demandes d’amis avec `seen_src = 0`
+* les ajouts dans des groupes avec `seen_join = 0`
+* les messages de groupe avec `id_msg > last_seen_msg_id`
+
+---
+
+# Méthodes du protocole
 
 ---
 
 ## Création utilisateur
 
-### `Create_User`
-
-Commande envoyée :
+### Commande
 
 ```txt
 Create,User,password
 ```
 
-Client envoie :
+### Échange client / serveur
+
+Client demande au serveur de créer un utilisateur.
 
 ```txt
-Create,user,password
+Client -> Serveur : Create,tom,azerty
 ```
 
-Serveur vérifie le nom de l’utilisateur.
+Le serveur vérifie d’abord que le nom d’utilisateur ne contient pas de caractères spéciaux interdits.
 
-Si le nom contient des caractères spéciaux refusés :
+Si le nom contient des caractères spéciaux :
 
 ```txt
-400
+Serveur -> Client : 400,CREATE_USER,Nom d'utilisateur invalide
 ```
 
 Si le nom est valide, le serveur vérifie si l’utilisateur existe déjà.
@@ -42,45 +144,49 @@ Si le nom est valide, le serveur vérifie si l’utilisateur existe déjà.
 Si l’utilisateur existe déjà :
 
 ```txt
-409
+Serveur -> Client : 409,CREATE_USER,Utilisateur déjà existant
 ```
 
-Si l’utilisateur n’existe pas, le serveur tente de créer l’utilisateur.
+Si l’utilisateur n’existe pas, le serveur crée l’utilisateur dans la table `User`.
 
 Si la création échoue :
 
 ```txt
-405
+Serveur -> Client : 405,CREATE_USER,Erreur lors de la création
 ```
 
 Si la création réussit :
 
 ```txt
-201
+Serveur -> Client : 201,CREATE_USER,Utilisateur créé
 ```
 
-Le serveur renvoie le code au client.
-
-Le client traite le code et affiche un message clair à l’utilisateur.
+Le client reçoit le code et affiche un message adapté à l’utilisateur.
 
 ---
 
 ## Connexion utilisateur
 
-### `connect_utilisateur`
-
-Commande envoyée :
+### Commande
 
 ```txt
-Connect,user,password
+Connect,User,password
 ```
 
-Le serveur vérifie que l’utilisateur existe.
+### Échange client / serveur
+
+Client demande à se connecter.
+
+```txt
+Client -> Serveur : Connect,tom,azerty
+```
+
+Le serveur vérifie que l’utilisateur existe dans la table `User`.
 
 Si l’utilisateur n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,CONNECT,Utilisateur inexistant
 ```
 
 Si l’utilisateur existe, le serveur vérifie le mot de passe.
@@ -88,43 +194,49 @@ Si l’utilisateur existe, le serveur vérifie le mot de passe.
 Si le mot de passe est incorrect :
 
 ```txt
-401
+Serveur -> Client : 401,CONNECT,Mot de passe incorrect
 ```
 
-Si le mot de passe est correct :
+Si le mot de passe est correct, le serveur récupère les informations nécessaires :
+
+* liste des amis
+* liste des groupes
+* messages privés non livrés
+* demandes d’amis en attente
+* messages de groupe non reçus
+
+Si la récupération des données échoue :
 
 ```txt
-200
+Serveur -> Client : 402,CONNECT,Erreur récupération données
 ```
 
-Le serveur récupère ensuite les données de l’utilisateur :
-
-* amis
-* groupes
-* messages
-* demandes en attente
-* mises à jour
-
-Si la récupération échoue :
+Si tout est correct :
 
 ```txt
-402
+Serveur -> Client : 200,CONNECT,OK;FRIENDS=...;GROUPS=...;MSG=...
 ```
 
-Si tout est correct, le serveur envoie les données au client en CSV.
+Après l’envoi des messages privés au client, le serveur peut passer leurs attributs `delivered` à `1`.
 
-Le client traite les données et les affiche proprement.
+Le client traite ensuite les données reçues et affiche l’interface utilisateur.
 
 ---
 
 ## Suppression utilisateur
 
-### `Delete_User`
-
-Commande envoyée :
+### Commande
 
 ```txt
 Delete,User,password
+```
+
+### Échange client / serveur
+
+Client demande la suppression de son compte.
+
+```txt
+Client -> Serveur : Delete,tom,azerty
 ```
 
 Le serveur vérifie que l’utilisateur existe.
@@ -132,7 +244,7 @@ Le serveur vérifie que l’utilisateur existe.
 Si l’utilisateur n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,DELETE_USER,Utilisateur inexistant
 ```
 
 Si l’utilisateur existe, le serveur vérifie le mot de passe.
@@ -140,48 +252,51 @@ Si l’utilisateur existe, le serveur vérifie le mot de passe.
 Si le mot de passe est incorrect :
 
 ```txt
-401
+Serveur -> Client : 401,DELETE_USER,Mot de passe incorrect
 ```
 
-Si le mot de passe est correct :
+Si le mot de passe est correct, le serveur désactive ou supprime l’utilisateur.
+
+Solution conseillée : ne pas supprimer directement l’utilisateur, mais passer l’attribut `is_deleted` à `1`.
 
 ```txt
-200
+User.is_deleted = 1
 ```
 
-Le serveur supprime ensuite l’utilisateur dans les tables concernées :
+Cela évite de casser les anciennes conversations, les messages ou les relations existantes.
 
-* table utilisateur
-* table amis
-* table groupes
-* table appartenance groupe
-* table messages
-* table update
+Le serveur peut ensuite supprimer ou désactiver les relations d’amis et les appartenances aux groupes.
 
-Si la suppression échoue :
+Si l’opération échoue :
 
 ```txt
-405
+Serveur -> Client : 405,DELETE_USER,Erreur suppression utilisateur
 ```
 
-Si la suppression réussit :
+Si l’opération réussit :
 
 ```txt
-200
+Serveur -> Client : 200,DELETE_USER,Utilisateur supprimé
 ```
 
-Le serveur stocke ensuite l’information dans la table update pour prévenir les utilisateurs concernés au prochain update.
+Les autres clients verront la modification lors de leur prochain appel `Update`, car le serveur renverra une liste d’amis et de groupes mise à jour.
 
 ---
 
-## Mise à jour utilisateur
+## Mise à jour client
 
-### `update`
-
-Commande envoyée :
+### Commande
 
 ```txt
-Update,user
+Update,User
+```
+
+### Échange client / serveur
+
+Le client demande au serveur s’il y a de nouvelles données pour l’utilisateur.
+
+```txt
+Client -> Serveur : Update,tom
 ```
 
 Le serveur vérifie que l’utilisateur existe.
@@ -189,284 +304,335 @@ Le serveur vérifie que l’utilisateur existe.
 Si l’utilisateur n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,UPDATE,Utilisateur inexistant
 ```
 
-Si l’utilisateur existe :
+Si l’utilisateur existe, le serveur cherche directement dans les tables existantes.
+
+Il cherche les nouveaux messages privés :
 
 ```txt
-200
+Message.dst_user = tom
+Message.type = PRIVATE
+Message.delivered = 0
 ```
 
-Le serveur regarde ensuite la table update.
-
-S’il n’y a aucune nouvelle donnée :
+Il cherche les demandes d’amis non vues :
 
 ```txt
-200
+Friend.dst_user = tom
+Friend.status = PENDING
+Friend.seen_dst = 0
 ```
 
-Le serveur renvoie un CSV vide ou un message indiquant qu’il n’y a pas de mise à jour.
-
-S’il y a des données, le serveur les récupère.
-
-Si la récupération échoue :
+Il cherche les réponses aux demandes d’amis :
 
 ```txt
-402
+Friend.src_user = tom
+Friend.status = ACCEPTED ou REFUSED
+Friend.seen_src = 0
 ```
 
-Si la récupération réussit, le serveur renvoie les données au client en CSV.
+Il cherche les groupes où l’utilisateur vient d’être ajouté :
 
-Le client traite les données reçues.
+```txt
+Group_Member.id_user = tom
+Group_Member.seen_join = 0
+```
 
-Après l’envoi, le serveur peut supprimer les updates déjà envoyés.
+Il cherche les messages de groupe non reçus :
+
+```txt
+Message.type = GROUP
+Message.id_msg > Group_Member.last_seen_msg_id
+```
+
+Si aucune donnée n’est disponible :
+
+```txt
+Serveur -> Client : 200,UPDATE,NO_DATA
+```
+
+Si des données sont disponibles :
+
+```txt
+Serveur -> Client : 200,UPDATE,DATA;MSG=...;FRIEND_REQUEST=...;GROUP_MSG=...
+```
+
+Après l’envoi, le serveur modifie les attributs concernés.
+
+Exemples :
+
+```txt
+Message.delivered = 1
+Friend.seen_dst = 1
+Friend.seen_src = 1
+Group_Member.seen_join = 1
+Group_Member.last_seen_msg_id = dernier message reçu
+```
+
+Le client traite les données et met à jour son affichage.
 
 ---
 
 ## Envoi de message privé
 
-### `send_Msg`
-
-Commande envoyée :
+### Commande
 
 ```txt
-Send_Msg,Src_User,Dst_User,msg
+Send_Msg,Src_User,Dst_User,Msg
 ```
 
-Le serveur vérifie que l’utilisateur source existe.
+### Échange client / serveur
 
-Si `Src_User` n’existe pas :
+Client envoie un message privé à un autre utilisateur.
 
 ```txt
-404
+Client -> Serveur : Send_Msg,tom,luc,Salut
 ```
 
-Le serveur vérifie que l’utilisateur destination existe.
+Le serveur vérifie que `Src_User` existe.
 
-Si `Dst_User` n’existe pas :
+Si l’utilisateur source n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,SEND_MSG,Utilisateur source inexistant
 ```
 
-Le serveur vérifie que le message n’est pas vide et ne contient pas de caractères interdits.
+Le serveur vérifie que `Dst_User` existe.
 
-Si le message est invalide :
+Si le destinataire n’existe pas :
 
 ```txt
-400
+Serveur -> Client : 404,SEND_MSG,Destinataire inexistant
 ```
 
-Le serveur tente de stocker le message dans la table message.
+Le serveur vérifie que le message n’est pas vide.
+
+Si le message est vide ou invalide :
+
+```txt
+Serveur -> Client : 400,SEND_MSG,Message invalide
+```
+
+Le serveur stocke le message dans la table `Message`.
+
+Exemple d’insertion logique :
+
+```txt
+src_user = tom
+dst_user = luc
+type = PRIVATE
+content = Salut
+delivered = 0
+read = 0
+```
 
 Si le stockage échoue :
 
 ```txt
-405
+Serveur -> Client : 405,SEND_MSG,Erreur stockage message
 ```
 
-Si le message est stocké correctement :
+Si le stockage réussit :
 
 ```txt
-200
+Serveur -> Client : 200,SEND_MSG,Message envoyé
 ```
 
-Le serveur ajoute ensuite une entrée dans la table update pour prévenir `Dst_User` qu’il a reçu un nouveau message.
-
-Si l’ajout dans la table update échoue :
-
-```txt
-405
-```
-
-Si tout est correct, le serveur renvoie au client :
-
-```txt
-200
-```
-
-Le client affiche un message indiquant que le message a bien été envoyé.
+Le destinataire recevra le message lors de son prochain appel `Update`, car le message aura encore `delivered = 0`.
 
 ---
 
-## Ajout d’ami
+## Demande d’ami
 
-### `freinds_add`
-
-Commande envoyée :
+### Commande
 
 ```txt
 F_add,Src_User,Dst_User
 ```
 
-Le serveur vérifie que `Src_User` existe.
+### Échange client / serveur
 
-Si `Src_User` n’existe pas :
+Client demande l’ajout d’un ami.
 
 ```txt
-404
+Client -> Serveur : F_add,tom,luc
+```
+
+Le serveur vérifie que `Src_User` existe.
+
+Si l’utilisateur source n’existe pas :
+
+```txt
+Serveur -> Client : 404,F_ADD,Utilisateur source inexistant
 ```
 
 Le serveur vérifie que `Dst_User` existe.
 
-Si `Dst_User` n’existe pas :
+Si l’utilisateur destination n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,F_ADD,Utilisateur destination inexistant
 ```
 
-Le serveur vérifie que `Src_User` et `Dst_User` ne sont pas identiques.
+Le serveur vérifie que l’utilisateur ne s’ajoute pas lui-même.
 
-Si l’utilisateur essaie de s’ajouter lui-même :
+Si `Src_User` et `Dst_User` sont identiques :
 
 ```txt
-400
+Serveur -> Client : 400,F_ADD,Impossible de s'ajouter soi-même
 ```
 
-Le serveur vérifie si les deux utilisateurs sont déjà amis.
+Le serveur vérifie si une relation existe déjà.
 
-S’ils sont déjà amis :
+Si les deux utilisateurs sont déjà amis ou si une demande est déjà en attente :
 
 ```txt
-409
+Serveur -> Client : 409,F_ADD,Relation déjà existante
 ```
 
-Le serveur vérifie si une demande d’ami existe déjà.
-
-Si une demande existe déjà :
+Sinon, le serveur crée une ligne dans la table `Friend`.
 
 ```txt
-409
+src_user = tom
+dst_user = luc
+status = PENDING
+seen_src = 1
+seen_dst = 0
 ```
 
-Le serveur crée une demande d’ami en attente.
+`seen_dst = 0` signifie que Luc n’a pas encore vu la demande.
 
 Si la création échoue :
 
 ```txt
-405
+Serveur -> Client : 405,F_ADD,Erreur création demande ami
 ```
 
-Si la demande est créée correctement :
+Si la création réussit :
 
 ```txt
-200
+Serveur -> Client : 200,F_ADD,Demande envoyée
 ```
 
-Le serveur ajoute une entrée dans la table update pour prévenir `Dst_User` qu’il a reçu une demande d’ami.
-
-Le client affiche un message indiquant que la demande a bien été envoyée.
+Luc recevra la demande lors de son prochain appel `Update`.
 
 ---
 
 ## Acceptation ou refus d’une demande d’ami
 
-### `freind_acc`
-
-Commande envoyée :
+### Commande
 
 ```txt
 F_Acc,Src_User,Dst_User,0or1
 ```
 
-`0` signifie refus de la demande.
-`1` signifie acceptation de la demande.
+Dans cette commande :
 
-Le serveur vérifie que `Src_User` existe.
+* `Src_User` est l’utilisateur qui répond à la demande.
+* `Dst_User` est l’utilisateur qui avait envoyé la demande.
+* `1` signifie accepter.
+* `0` signifie refuser.
 
-Si `Src_User` n’existe pas :
-
-```txt
-404
-```
-
-Le serveur vérifie que `Dst_User` existe.
-
-Si `Dst_User` n’existe pas :
+Exemple :
 
 ```txt
-404
+Client -> Serveur : F_Acc,luc,tom,1
 ```
 
-Le serveur vérifie qu’une demande d’ami existe entre les deux utilisateurs.
+Ici, Luc accepte la demande envoyée par Tom.
+
+Le serveur vérifie que les deux utilisateurs existent.
+
+Si un utilisateur n’existe pas :
+
+```txt
+Serveur -> Client : 404,F_ACC,Utilisateur inexistant
+```
+
+Le serveur vérifie qu’une demande existe bien dans la table `Friend`.
+
+```txt
+src_user = tom
+dst_user = luc
+status = PENDING
+```
 
 Si aucune demande n’existe :
 
 ```txt
-404
+Serveur -> Client : 404,F_ACC,Demande inexistante
 ```
 
-Si la valeur reçue est différente de `0` ou `1` :
+Si la valeur est différente de `0` ou `1` :
 
 ```txt
-400
+Serveur -> Client : 400,F_ACC,Valeur invalide
 ```
 
-Si la valeur est `0`, le serveur refuse la demande et la supprime.
-
-Si la suppression échoue :
+Si la valeur est `1`, le serveur accepte la demande :
 
 ```txt
-405
+status = ACCEPTED
+seen_src = 0
+seen_dst = 1
 ```
 
-Si le refus est bien enregistré :
+`seen_src = 0` permet à Tom de recevoir l’information lors de son prochain `Update`.
+
+Si la valeur est `0`, le serveur refuse la demande :
 
 ```txt
-200
+status = REFUSED
+seen_src = 0
+seen_dst = 1
 ```
 
-Le serveur ajoute une update pour prévenir l’autre utilisateur du refus.
-
-Si la valeur est `1`, le serveur accepte la demande.
-
-Le serveur ajoute les deux utilisateurs dans la table amis.
-
-Si l’ajout échoue :
+Si la modification échoue :
 
 ```txt
-405
+Serveur -> Client : 405,F_ACC,Erreur traitement demande
 ```
 
-Le serveur supprime ensuite la demande d’ami en attente.
-
-Si l’opération réussit :
+Si la modification réussit :
 
 ```txt
-200
+Serveur -> Client : 200,F_ACC,Réponse enregistrée
 ```
-
-Le serveur ajoute une update pour prévenir les deux utilisateurs que la demande a été acceptée.
-
-Le client traite le code et affiche un message clair.
 
 ---
 
 ## Création d’un groupe
 
-### `Group_Add`
-
-Commande conseillée :
+### Commande
 
 ```txt
 G_add,Src_User,G_Name
 ```
 
-Le serveur vérifie que `Src_User` existe.
+### Échange client / serveur
 
-Si `Src_User` n’existe pas :
+Client demande la création d’un groupe.
 
 ```txt
-404
+Client -> Serveur : G_add,tom,ProjetSAE
 ```
 
-Le serveur vérifie que le nom du groupe ne contient pas de caractères spéciaux interdits.
+Le serveur vérifie que `Src_User` existe.
 
-Si le nom est invalide :
+Si l’utilisateur n’existe pas :
 
 ```txt
-400
+Serveur -> Client : 404,G_ADD,Utilisateur inexistant
+```
+
+Le serveur vérifie que le nom du groupe est valide.
+
+Si le nom du groupe contient des caractères interdits :
+
+```txt
+Serveur -> Client : 400,G_ADD,Nom de groupe invalide
 ```
 
 Le serveur vérifie si le groupe existe déjà.
@@ -474,49 +640,53 @@ Le serveur vérifie si le groupe existe déjà.
 Si le groupe existe déjà :
 
 ```txt
-409
+Serveur -> Client : 409,G_ADD,Groupe déjà existant
 ```
 
-Le serveur crée le groupe.
+Sinon, le serveur crée le groupe dans la table `Group`.
+
+```txt
+group_name = ProjetSAE
+owner = tom
+```
+
+Puis le serveur ajoute automatiquement Tom dans la table `Group_Member`.
+
+```txt
+id_user = tom
+role = OWNER
+seen_join = 1
+last_seen_msg_id = 0
+```
 
 Si la création échoue :
 
 ```txt
-405
+Serveur -> Client : 405,G_ADD,Erreur création groupe
 ```
 
 Si la création réussit :
 
 ```txt
-201
+Serveur -> Client : 201,G_ADD,Groupe créé
 ```
-
-Le serveur ajoute automatiquement `Src_User` comme membre du groupe, éventuellement avec le rôle administrateur ou créateur.
-
-Si l’ajout du créateur dans le groupe échoue :
-
-```txt
-405
-```
-
-Si tout est correct, le serveur renvoie :
-
-```txt
-201
-```
-
-Le client affiche un message indiquant que le groupe a bien été créé.
 
 ---
 
 ## Ajout d’un membre dans un groupe
 
-### `Group_Add_Member`
-
-Commande conseillée :
+### Commande
 
 ```txt
 G_Add_M,Src_User,G_Name,User
+```
+
+### Échange client / serveur
+
+Client demande à ajouter un utilisateur dans un groupe.
+
+```txt
+Client -> Serveur : G_Add_M,tom,ProjetSAE,luc
 ```
 
 Le serveur vérifie que `Src_User` existe.
@@ -524,7 +694,7 @@ Le serveur vérifie que `Src_User` existe.
 Si `Src_User` n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,G_ADD_M,Utilisateur source inexistant
 ```
 
 Le serveur vérifie que le groupe existe.
@@ -532,7 +702,7 @@ Le serveur vérifie que le groupe existe.
 Si le groupe n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,G_ADD_M,Groupe inexistant
 ```
 
 Le serveur vérifie que l’utilisateur à ajouter existe.
@@ -540,63 +710,75 @@ Le serveur vérifie que l’utilisateur à ajouter existe.
 Si `User` n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,G_ADD_M,Utilisateur à ajouter inexistant
 ```
 
-Le serveur vérifie que `Src_User` appartient au groupe ou a le droit d’ajouter un membre.
+Le serveur vérifie que `Src_User` a le droit d’ajouter un membre.
 
-Si `Src_User` n’a pas le droit :
+Par exemple, il doit avoir le rôle `OWNER` ou `ADMIN`.
+
+Si l’utilisateur n’a pas les droits :
 
 ```txt
-401
+Serveur -> Client : 401,G_ADD_M,Accès refusé
 ```
 
 Le serveur vérifie que `User` n’est pas déjà membre du groupe.
 
-Si `User` est déjà membre :
+Si l’utilisateur est déjà membre :
 
 ```txt
-409
+Serveur -> Client : 409,G_ADD_M,Utilisateur déjà membre
 ```
 
-Le serveur ajoute `User` dans le groupe.
+Sinon, le serveur ajoute l’utilisateur dans la table `Group_Member`.
+
+```txt
+id_group = ProjetSAE
+id_user = luc
+role = MEMBER
+seen_join = 0
+last_seen_msg_id = dernier message actuel du groupe
+```
+
+`seen_join = 0` permet à Luc de recevoir l’information lors de son prochain `Update`.
 
 Si l’ajout échoue :
 
 ```txt
-405
+Serveur -> Client : 405,G_ADD_M,Erreur ajout membre
 ```
 
 Si l’ajout réussit :
 
 ```txt
-200
+Serveur -> Client : 200,G_ADD_M,Membre ajouté
 ```
-
-Le serveur ajoute une update pour prévenir `User` qu’il a été ajouté au groupe.
-
-Le serveur peut aussi ajouter une update pour les autres membres du groupe afin de mettre à jour la liste des membres.
-
-Le client affiche un message indiquant que l’utilisateur a bien été ajouté au groupe.
 
 ---
 
 ## Envoi d’un message dans un groupe
 
-### `Send_Group_Msg`
-
-Commande conseillée :
+### Commande
 
 ```txt
 Send_G_Msg,Src_User,G_Name,Msg
 ```
 
-Le serveur vérifie que `Src_User` existe.
+### Échange client / serveur
 
-Si `Src_User` n’existe pas :
+Client envoie un message dans un groupe.
 
 ```txt
-404
+Client -> Serveur : Send_G_Msg,tom,ProjetSAE,Salut le groupe
+```
+
+Le serveur vérifie que `Src_User` existe.
+
+Si l’utilisateur n’existe pas :
+
+```txt
+Serveur -> Client : 404,SEND_G_MSG,Utilisateur inexistant
 ```
 
 Le serveur vérifie que le groupe existe.
@@ -604,93 +786,110 @@ Le serveur vérifie que le groupe existe.
 Si le groupe n’existe pas :
 
 ```txt
-404
+Serveur -> Client : 404,SEND_G_MSG,Groupe inexistant
 ```
 
 Le serveur vérifie que `Src_User` appartient au groupe.
 
-Si `Src_User` n’est pas membre du groupe :
+Si l’utilisateur n’est pas membre du groupe :
 
 ```txt
-401
+Serveur -> Client : 401,SEND_G_MSG,Utilisateur non membre du groupe
 ```
 
-Le serveur vérifie que le message n’est pas vide et ne contient pas de caractères interdits.
+Le serveur vérifie que le message n’est pas vide.
 
 Si le message est invalide :
 
 ```txt
-400
+Serveur -> Client : 400,SEND_G_MSG,Message invalide
 ```
 
-Le serveur stocke le message dans la table message avec le nom du groupe comme destination.
+Le serveur stocke le message dans la table `Message`.
+
+```txt
+src_user = tom
+dst_group = ProjetSAE
+type = GROUP
+content = Salut le groupe
+```
+
+Il n’y a pas besoin de table `update`.
+
+Les autres membres recevront le message lors de leur prochain `Update`, car leur attribut `last_seen_msg_id` dans `Group_Member` sera inférieur à l’identifiant du nouveau message.
 
 Si le stockage échoue :
 
 ```txt
-405
+Serveur -> Client : 405,SEND_G_MSG,Erreur stockage message groupe
 ```
 
 Si le stockage réussit :
 
 ```txt
-200
+Serveur -> Client : 200,SEND_G_MSG,Message de groupe envoyé
 ```
-
-Le serveur récupère la liste des membres du groupe.
-
-Si la récupération échoue :
-
-```txt
-402
-```
-
-Le serveur ajoute une entrée dans la table update pour chaque membre du groupe, sauf éventuellement `Src_User`.
-
-Si l’ajout dans la table update échoue :
-
-```txt
-405
-```
-
-Si tout est correct, le serveur renvoie :
-
-```txt
-200
-```
-
-Le client affiche un message indiquant que le message de groupe a bien été envoyé.
 
 ---
 
-## Format CSV possible pour les réponses serveur
+## Exemple complet d’un échange
 
-Exemple de réponse simple :
-
-```txt
-200,Message envoyé
-```
-
-Exemple de réponse avec erreur :
+Tom envoie une demande d’ami à Luc.
 
 ```txt
-404,Utilisateur inexistant
+Client Tom -> Serveur : F_add,tom,luc
+Serveur -> Client Tom : 200,F_ADD,Demande envoyée
 ```
 
-Exemple de réponse update avec message :
+Dans la base de données :
 
 ```txt
-UPDATE,MSG,Src_User,Dst_User,Message
+src_user = tom
+dst_user = luc
+status = PENDING
+seen_src = 1
+seen_dst = 0
 ```
 
-Exemple de réponse update avec demande d’ami :
+Luc fait un update.
 
 ```txt
-UPDATE,F_REQUEST,Src_User,Dst_User
+Client Luc -> Serveur : Update,luc
+Serveur -> Client Luc : 200,UPDATE,FRIEND_REQUEST,tom
 ```
 
-Exemple de réponse update avec groupe :
+Le serveur passe ensuite :
 
 ```txt
-UPDATE,GROUP_MSG,Src_User,G_Name,Message
+seen_dst = 1
 ```
+
+Luc accepte.
+
+```txt
+Client Luc -> Serveur : F_Acc,luc,tom,1
+Serveur -> Client Luc : 200,F_ACC,Réponse enregistrée
+```
+
+Dans la base :
+
+```txt
+status = ACCEPTED
+seen_src = 0
+seen_dst = 1
+```
+
+Tom fait un update.
+
+```txt
+Client Tom -> Serveur : Update,tom
+Serveur -> Client Tom : 200,UPDATE,FRIEND_ACCEPTED,luc
+```
+
+Le serveur passe ensuite :
+
+```txt
+seen_src = 1
+```
+
+Aucune table `update` n’est utilisée.
