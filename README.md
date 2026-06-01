@@ -127,9 +127,6 @@ Create,User,password
 
 Client demande au serveur de créer un utilisateur.
 
-```txt
-Client -> Serveur : Create,tom,azerty
-```
 
 Le serveur vérifie d’abord que le nom d’utilisateur ne contient pas de caractères spéciaux interdits.
 
@@ -177,9 +174,6 @@ Connect,User,password
 
 Client demande à se connecter.
 
-```txt
-Client -> Serveur : Connect,tom,azerty
-```
 
 Le serveur vérifie que l’utilisateur existe dans la table `User`.
 
@@ -236,7 +230,7 @@ Delete,User,password
 Client demande la suppression de son compte.
 
 ```txt
-Client -> Serveur : Delete,tom,azerty
+Client -> Serveur : Delete,User,password
 ```
 
 Le serveur vérifie que l’utilisateur existe.
@@ -295,10 +289,6 @@ Update,User
 
 Le client demande au serveur s’il y a de nouvelles données pour l’utilisateur.
 
-```txt
-Client -> Serveur : Update,tom
-```
-
 Le serveur vérifie que l’utilisateur existe.
 
 Si l’utilisateur n’existe pas :
@@ -312,7 +302,7 @@ Si l’utilisateur existe, le serveur cherche directement dans les tables exista
 Il cherche les nouveaux messages privés :
 
 ```txt
-Message.dst_user = tom
+Message.dst_user = User
 Message.type = PRIVATE
 Message.delivered = 0
 ```
@@ -320,7 +310,7 @@ Message.delivered = 0
 Il cherche les demandes d’amis non vues :
 
 ```txt
-Friend.dst_user = tom
+Friend.dst_user = User
 Friend.status = PENDING
 Friend.seen_dst = 0
 ```
@@ -328,7 +318,7 @@ Friend.seen_dst = 0
 Il cherche les réponses aux demandes d’amis :
 
 ```txt
-Friend.src_user = tom
+Friend.src_user = User
 Friend.status = ACCEPTED ou REFUSED
 Friend.seen_src = 0
 ```
@@ -336,7 +326,7 @@ Friend.seen_src = 0
 Il cherche les groupes où l’utilisateur vient d’être ajouté :
 
 ```txt
-Group_Member.id_user = tom
+Group_Member.id_user = User
 Group_Member.seen_join = 0
 ```
 
@@ -388,7 +378,7 @@ Send_Msg,Src_User,Dst_User,Msg
 Client envoie un message privé à un autre utilisateur.
 
 ```txt
-Client -> Serveur : Send_Msg,tom,luc,Salut
+Client -> Serveur : Send_Msg,User,luc,Salut
 ```
 
 Le serveur vérifie que `Src_User` existe.
@@ -420,7 +410,7 @@ Le serveur stocke le message dans la table `Message`.
 Exemple d’insertion logique :
 
 ```txt
-src_user = tom
+src_user = User
 dst_user = luc
 type = PRIVATE
 content = Salut
@@ -457,7 +447,7 @@ F_add,Src_User,Dst_User
 Client demande l’ajout d’un ami.
 
 ```txt
-Client -> Serveur : F_add,tom,luc
+Client -> Serveur : F_add,User,luc
 ```
 
 Le serveur vérifie que `Src_User` existe.
@@ -495,7 +485,7 @@ Serveur -> Client : 409,F_ADD,Relation déjà existante
 Sinon, le serveur crée une ligne dans la table `Friend`.
 
 ```txt
-src_user = tom
+src_user = User
 dst_user = luc
 status = PENDING
 seen_src = 1
@@ -538,10 +528,10 @@ Dans cette commande :
 Exemple :
 
 ```txt
-Client -> Serveur : F_Acc,luc,tom,1
+Client -> Serveur : F_Acc,luc,User,1
 ```
 
-Ici, Luc accepte la demande envoyée par Tom.
+Ici, Luc accepte la demande envoyée par User.
 
 Le serveur vérifie que les deux utilisateurs existent.
 
@@ -554,7 +544,7 @@ Serveur -> Client : 404,F_ACC,Utilisateur inexistant
 Le serveur vérifie qu’une demande existe bien dans la table `Friend`.
 
 ```txt
-src_user = tom
+src_user = User
 dst_user = luc
 status = PENDING
 ```
@@ -579,7 +569,7 @@ seen_src = 0
 seen_dst = 1
 ```
 
-`seen_src = 0` permet à Tom de recevoir l’information lors de son prochain `Update`.
+`seen_src = 0` permet à User de recevoir l’information lors de son prochain `Update`.
 
 Si la valeur est `0`, le serveur refuse la demande :
 
@@ -616,7 +606,7 @@ G_add,Src_User,G_Name
 Client demande la création d’un groupe.
 
 ```txt
-Client -> Serveur : G_add,tom,ProjetSAE
+Client -> Serveur : G_add,User,ProjetSAE
 ```
 
 Le serveur vérifie que `Src_User` existe.
@@ -647,13 +637,13 @@ Sinon, le serveur crée le groupe dans la table `Group`.
 
 ```txt
 group_name = ProjetSAE
-owner = tom
+owner = User
 ```
 
-Puis le serveur ajoute automatiquement Tom dans la table `Group_Member`.
+Puis le serveur ajoute auUseratiquement User dans la table `Group_Member`.
 
 ```txt
-id_user = tom
+id_user = User
 role = OWNER
 seen_join = 1
 last_seen_msg_id = 0
@@ -686,7 +676,7 @@ G_Add_M,Src_User,G_Name,User
 Client demande à ajouter un utilisateur dans un groupe.
 
 ```txt
-Client -> Serveur : G_Add_M,tom,ProjetSAE,luc
+Client -> Serveur : G_Add_M,User,ProjetSAE,luc
 ```
 
 Le serveur vérifie que `Src_User` existe.
@@ -770,7 +760,7 @@ Send_G_Msg,Src_User,G_Name,Msg
 Client envoie un message dans un groupe.
 
 ```txt
-Client -> Serveur : Send_G_Msg,tom,ProjetSAE,Salut le groupe
+Client -> Serveur : Send_G_Msg,User,ProjetSAE,Salut le groupe
 ```
 
 Le serveur vérifie que `Src_User` existe.
@@ -808,7 +798,7 @@ Serveur -> Client : 400,SEND_G_MSG,Message invalide
 Le serveur stocke le message dans la table `Message`.
 
 ```txt
-src_user = tom
+src_user = User
 dst_group = ProjetSAE
 type = GROUP
 content = Salut le groupe
@@ -834,17 +824,17 @@ Serveur -> Client : 200,SEND_G_MSG,Message de groupe envoyé
 
 ## Exemple complet d’un échange
 
-Tom envoie une demande d’ami à Luc.
+User envoie une demande d’ami à Luc.
 
 ```txt
-Client Tom -> Serveur : F_add,tom,luc
-Serveur -> Client Tom : 200,F_ADD,Demande envoyée
+Client User -> Serveur : F_add,User,luc
+Serveur -> Client User : 200,F_ADD,Demande envoyée
 ```
 
 Dans la base de données :
 
 ```txt
-src_user = tom
+src_user = User
 dst_user = luc
 status = PENDING
 seen_src = 1
@@ -855,7 +845,7 @@ Luc fait un update.
 
 ```txt
 Client Luc -> Serveur : Update,luc
-Serveur -> Client Luc : 200,UPDATE,FRIEND_REQUEST,tom
+Serveur -> Client Luc : 200,UPDATE,FRIEND_REQUEST,User
 ```
 
 Le serveur passe ensuite :
@@ -867,7 +857,7 @@ seen_dst = 1
 Luc accepte.
 
 ```txt
-Client Luc -> Serveur : F_Acc,luc,tom,1
+Client Luc -> Serveur : F_Acc,luc,User,1
 Serveur -> Client Luc : 200,F_ACC,Réponse enregistrée
 ```
 
@@ -879,11 +869,11 @@ seen_src = 0
 seen_dst = 1
 ```
 
-Tom fait un update.
+User fait un update.
 
 ```txt
-Client Tom -> Serveur : Update,tom
-Serveur -> Client Tom : 200,UPDATE,FRIEND_ACCEPTED,luc
+Client User -> Serveur : Update,User
+Serveur -> Client User : 200,UPDATE,FRIEND_ACCEPTED,luc
 ```
 
 Le serveur passe ensuite :
