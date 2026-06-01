@@ -5,6 +5,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.net.InetAddress;
 
 // Définis les différents status
 enum status { PENDING, ACCEPTED, REFUSED }
@@ -61,11 +62,27 @@ byte [] buffer = new byte [1024] ;
 String s ;
 DatagramSocket socket = new DatagramSocket(port) ;
 for ( ; ; ) {
-DatagramPacket packet =
-new DatagramPacket(buffer, buffer.length);
+
+DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 socket.receive(packet) ;
-s = new String(packet.getData(), 0, packet.getLength(), "UTF-8");
-System.out.println("Reçu de " + packet.getAddress() + ":" + packet.getPort() + " → " + s);
+
+InetAddress clientAddr = packet.getAddress();
+int clientPort         = packet.getPort();
+
+String recu = new String(packet.getData(), 0, packet.getLength(), "UTF-8");
+String[] parts = recu.split(",");
+
+// Switch pour les différentes méthodes
+String reponse;
+switch (parts[0]) {
+    case "Create":  reponse = creerUtilisateur(parts); break;
+    case "Login":   reponse = connecter(parts);        break;
+    case "Message": reponse = envoyerMessage(parts);   break;
+    case "Read":    reponse = lireMessages(parts);     break;
+}
+// Renvoyer au client
+byte[] repBytes = reponse.getBytes("UTF-8");
+socket.send(new DatagramPacket(repBytes, repBytes.length, clientAddr, clientPort));
 }
 }
 }
