@@ -1,4 +1,118 @@
 
+
+# SAE302 — Méthodes du protocole client/serveur
+
+## Principe général
+
+Le protocole fonctionne avec des échanges simples en CSV.
+
+Le client envoie une commande au serveur :
+
+```txt
+Commande,parametre1,parametre2,parametre3
+```
+
+Le serveur traite la demande, vérifie les données, modifie si besoin la base de données, puis renvoie une réponse au client :
+
+```txt
+Code,Type,Message
+```
+
+Exemple :
+
+```txt
+201,CREATE_USER,Utilisateur créé
+```
+
+ou
+
+```txt
+404,CONNECT,Utilisateur inexistant
+```
+
+---
+
+## Codes utilisés
+
+| Code  | Signification                              |
+| ----- | ------------------------------------------ |
+| `200` | Succès                                     |
+| `201` | Création réussie                           |
+| `400` | Requête invalide                           |
+| `401` | Mauvais mot de passe ou accès refusé       |
+| `402` | Erreur lors de la récupération des données |
+| `404` | Ressource inexistante                      |
+| `405` | Erreur serveur / erreur base de données    |
+| `409` | Conflit, ressource déjà existante          |
+
+---
+
+## Gestion des mises à jour sans table `update`
+
+Pour éviter d’utiliser une table `update`, les informations à envoyer au client sont retrouvées directement grâce à des attributs dans les tables existantes.
+
+Exemples d’attributs possibles :
+
+### Table `User`
+
+| Attribut        | Utilité                                                                           |
+| --------------- | --------------------------------------------------------------------------------- |
+| `id_user`       | Identifiant de l’utilisateur                                                      |
+| `username`      | Nom d’utilisateur                                                                 |
+| `password_hash` | Mot de passe hashé                                                                |
+| `is_deleted`    | Permet de désactiver un utilisateur sans supprimer directement toutes les données |
+
+### Table `Friend`
+
+| Attribut   | Utilité                                    |
+| ---------- | ------------------------------------------ |
+| `src_user` | Utilisateur qui envoie la demande          |
+| `dst_user` | Utilisateur qui reçoit la demande          |
+| `status`   | `PENDING`, `ACCEPTED`, `REFUSED`           |
+| `seen_src` | Indique si l’émetteur a vu la réponse      |
+| `seen_dst` | Indique si le destinataire a vu la demande |
+
+### Table `Message`
+
+| Attribut    | Utilité                                                 |
+| ----------- | ------------------------------------------------------- |
+| `id_msg`    | Identifiant du message                                  |
+| `src_user`  | Utilisateur qui envoie le message                       |
+| `dst_user`  | Destinataire si message privé                           |
+| `dst_group` | Groupe si message de groupe                             |
+| `type`      | `PRIVATE` ou `GROUP`                                    |
+| `content`   | Contenu du message                                      |
+| `delivered` | Indique si le message privé a déjà été envoyé au client |
+| `read`      | Indique si le message a été lu                          |
+
+### Table `Group`
+
+| Attribut     | Utilité               |
+| ------------ | --------------------- |
+| `id_group`   | Identifiant du groupe |
+| `group_name` | Nom du groupe         |
+| `owner`      | Créateur du groupe    |
+
+### Table `Group_Member`
+
+| Attribut           | Utilité                                          |
+| ------------------ | ------------------------------------------------ |
+| `id_group`         | Groupe concerné                                  |
+| `id_user`          | Membre du groupe                                 |
+| `role`             | `OWNER`, `ADMIN`, `MEMBER`                       |
+| `seen_join`        | Indique si l’utilisateur a vu qu’il a été ajouté |
+| `last_seen_msg_id` | Dernier message de groupe reçu par l’utilisateur |
+
+L’appel `Update` du client permet donc au serveur de chercher directement :
+
+* les messages privés avec `delivered = 0`
+* les demandes d’amis avec `status = PENDING` et `seen_dst = 0`
+* les réponses aux demandes d’amis avec `seen_src = 0`
+* les ajouts dans des groupes avec `seen_join = 0`
+* les messages de groupe avec `id_msg > last_seen_msg_id`
+
+---
+
 # Méthodes du protocole
 
 ---
