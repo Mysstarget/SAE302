@@ -97,8 +97,8 @@ Exemples d’attributs possibles :
 
 | Attribut           | Utilité                                          |
 | ------------------ | ------------------------------------------------ |
-| `id_group`         | Groupe concerné                                  |
-| `id_user`          | Membre du groupe                                 |
+| `id_group_member`         | Groupe concerné                                  |
+| `id_group_user`          | Membre du groupe                                 |
 | `role`             | `OWNER`, `ADMIN`, `MEMBER`                       |
 | `seen_join`        | Indique si l’utilisateur a vu qu’il a été ajouté |
 | `last_seen_msg_id` | Dernier message de groupe reçu par l’utilisateur |
