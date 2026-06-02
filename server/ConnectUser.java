@@ -12,24 +12,24 @@ public class ConnectUser {
     String user = parts[1];
     String mdp = parts[2];
     
-    // Valider les entrées
+    // Valide les entree
     if (user == null || mdp == null || user.isEmpty() || mdp.isEmpty()) {
         return "400,LOGIN,Identifiants vides";
     }
 
     int indexUser = trouverUtilisateur(user);
 
-    // 1. Vérifier si l'utilisateur existe
+    // 1. verifie si l'utilisateur existe
     if (indexUser == -1) {
         return "404,LOGIN,Utilisateur inexistant";
     }
 
-    // 2. Vérifier le mot de passe
+    // 2. verifie le mot de passe
     if (!Server.password[indexUser].equals(mdp)) {
         return "401,LOGIN,Mot de passe incorrect";
     }
 
-    // 3. Créer une session
+    // 3. crée la session
     String token = java.util.UUID.randomUUID().toString();
     Server.isConnected[indexUser] = true;
     Server.sessionToken[indexUser] = token;  
