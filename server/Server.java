@@ -1,5 +1,3 @@
-package Server;
-
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -39,13 +37,22 @@ public class Server {
 
     // fonction pour trouver l'utilisateur
     private Utilisateur findUser(String username) {
-
-    for (Utilisateur u : utilisateurs) {
-        if (u.getUsername().equals(username) && !u.isDeleted()) {
-            return u;
+        for (Utilisateur u : utilisateurs) {
+            if (u.getUsername().equals(username) && !u.isDeleted()) {
+                return u;
+            }
         }
+        return null;
     }
-    return null;
+
+    // fonction pour trouver groupe
+    private Groupe findGroupe(String groupName) {
+        for (Groupe g : groupes) {
+            if (g.getGroupName().equals(groupName)) {
+                return g;
+            }
+        }
+        return null;
     }
 
     // génère un token
@@ -58,92 +65,310 @@ public class Server {
         return username.matches("[a-zA-Z0-9_]+");
     }
 
-    // Méthode créer un user
+    // Vérifie si un utilisateur a le bon format
+    private boolean isValidGroupname(String groupname) {
+        return groupname.matches("[a-zA-Z0-9_]+");
+    }
+
+    // Méthode pour créer un user
     private String createUser(String username, String password) {
-    if (!isValidUsername(username)) {
-        return "400,CREATE_USER,Nom d'utilisateur invalide";
-    }
-    if (findUser(username)!=null) {
-        return "409,CREATE_USER,Utilisateur déjà existant";
-    }
-    try {
-        Utilisateur user = new Utilisateur(utilisateurs.size() + 1, username, password);
-        utilisateurs.add(user);
-        return "201,CREATE_USER,Utilisateur créé";
-    } catch (Exception e) {
-        return "405,CREATE_USER,Erreur lors de la création";
-    }
+        if (!isValidUsername(username)) {
+            return "400,CREATE_USER,Nom d'utilisateur invalide";
+        }
+        if (findUser(username)!=null) {
+            return "409,CREATE_USER,Utilisateur deja existant";
+        }
+        try {
+            Utilisateur user = new Utilisateur(utilisateurs.size() + 1, username, password);
+            utilisateurs.add(user);
+            return "201,CREATE_USER,Utilisateur cree";
+        } catch (Exception e) {
+            return "405,CREATE_USER,Erreur lors de la creation";
+        }
     }
 
     // Méthode connect
     private String connectUser(String username, String password) {
-    Utilisateur user = findUser(username);
-    if (user == null) {
-        return "404,CONNECT,Utilisateur inexistant";
-    }
-    if (!user.getPassword().equals(password)) {
-        return "401,CONNECT,Mot de passe incorrect";
-    }
-    user.setConnected(true);
-    String token = generateToken();
-    user.setSessionToken(token);
-    return "200,CONNECT,OK;" + token;
+        Utilisateur user = findUser(username);
+        if (user == null) {
+            return "404,CONNECT,Utilisateur inexistant";
+        }
+        if (!user.getPassword().equals(password)) {
+            return "401,CONNECT,Mot de passe incorrect";
+        }
+        user.setConnected(true);
+        String token = generateToken();
+        user.setSessionToken(token);
+        return "200,CONNECT,OK;" + token;
     }
 
     // Méthode Delete
     private String deleteUser(String username, String password) {
-    Utilisateur user = findUser(username);
-    if (user == null) {
-        return "404,DELETE_USER,Utilisateur inexistant";
-    }
-    if (!user.getPassword().equals(password)) {
-        return "401,DELETE_USER,Mot de passe incorrect";
-    }
-    try {
-        user.delete();
-        return "200,DELETE_USER,Utilisateur supprimé";
-    } catch (Exception e) {
-        return "405,DELETE_USER,Erreur suppression utilisateur";
-    }
-    }
-
-private void envoi(String message) throws IOException {
-        byte[] data = message.getBytes();
-        DatagramPacket paquet = new DatagramPacket(data, data.length, recu.getAddress(), recu.getPort()); socket.send(paquet);
-        System.out.println("envoye = " + message);
+        Utilisateur user = findUser(username);
+        if (user == null) {
+            return "404,DELETE_USER,Utilisateur inexistant";
+        }
+        if (!user.getPassword().equals(password)) {
+            return "401,DELETE_USER,Mot de passe incorrect";
+        }
+        try {
+            user.delete();
+            return "200,DELETE_USER,Utilisateur supprime";
+        } catch (Exception e) {
+            return "405,DELETE_USER,Erreur suppression utilisateur";
+        }
     }
 
-public void start() throws IOException {
-    while (true) {
-        byte[] buffer = new byte[1024];
-        recu = new DatagramPacket(buffer, buffer.length);
-        socket.receive(recu);
-        String s = new String(recu.getData(), 0, recu.getLength());
-            System.out.println("recu = " + s);
-            String[] t = s.split(",");
+    // Méthode ajout d'ami
+    private String F_add(String srcUser, String dstUser) {
+        Utilisateur src = findUser(srcUser);
+        if (src == null) {
+            return "404,F_ADD,Utilisateur source inexistant";
+        }
+        Utilisateur dst = findUser(dstUser);
+        if (dst == null) {
+            return "404,F_add,Utilisateur destination inexistant";
+        }
+        if (srcUser.equals(dstUser)) {
+            return "400,F_add,Impossible de s'ajouter soi-même";
+        }
+        // Vérifie si une relation existe déjà
+        for (Friend f : friends) {
+            boolean memeRelation = (f.getSrcUser().equals(srcUser) && f.getDstUser().equals(dstUser)) || (f.getSrcUser().equals(dstUser) && f.getDstUser().equals(srcUser));
+            if (memeRelation) {
+                return "409,F_Add,Relation deja existante";
+            }
+        }
+        try {
+            Friend f = new Friend(srcUser, dstUser);
+            friends.add(f);
+            return "200,F_ADD,Demande envoyee";
+        } catch (Exception e) {
+            return "405,F_ADD,Erreur creation demande ami";
+        }
+    }
 
-        // envoie pour la méthode create
-        if(t[0].equals("Create")) {
-            envoi(createUser(t[1],t[2]));
+    // Méthode demande amis
+    private String F_acc(String srcUser, String dstUser, String value) {
+        Utilisateur src = findUser(srcUser);
+        Utilisateur dst = findUser(dstUser);
+        if (src == null || dst == null) {
+            return "404,F_ACC,Utilisateur inexistant";
+        }
+        Friend demande = null;
+        for (Friend f : friends) {
+            if (f.getSrcUser().equals(dstUser) && f.getDstUser().equals(srcUser) && f.getStatus().equals("PENDING")) {
+                demande = f;
+                break;
+            }
+        }
+        if (demande == null) {
+            return "404,F_ACC,Demande inexistante";
+        }
+        if (!value.equals("0") && !value.equals("1")) {
+            return "400,F_ACC,Valeur invalide";
+        }
+        try {
+            if (value.equals("1")) {
+                demande.accept();
+            } else {
+                demande.refuse();
+            }
+            demande.setSeenSrc(false);
+            demande.setSeenDst(true);
+            return "200,F_ACC,Reponse enregistree";
+        } catch (Exception e) {
+            return "405,F_ACC,Erreur traitement demande";
+        }
+    }
+
+    // Méthode ajout groupe
+    private String G_add(String srcUser, String groupName) {
+        Utilisateur user = findUser(srcUser);
+        if (user == null) {
+            return "404,G_ADD,Utilisateur inexistant";
+        }
+        if (!isValidGroupname(groupName)) {
+            return "400,G_ADD,Nom de groupe invalide";
+        }
+        if (findGroupe(groupName)!=null) {
+            return "409, Conflit, ressource déjà existante";
+        }
+        try {
+            int idGroup = groupes.size() + 1;
+            Groupe g = new Groupe(idGroup, groupName, srcUser);
+            groupes.add(g);
+            GroupMember m = new GroupMember(idGroup, srcUser, "OWNER");
+            membres.add(m);
+            m.setSeenJoin(true);
+            return "201,G_ADD,Groupe cree";
+        } catch (Exception e) {
+            return "405,G_ADD,Erreur creation groupe";
+        }
+    }
+
+    // Méthode ajout Membre groupe
+    private String G_add_M(String srcUser, String groupName, String userToAdd) {
+        Utilisateur src = findUser(srcUser);
+        if (src == null) {
+            return "404,G_ADD_M,Utilisateur source inexistant";
+        }
+        Groupe groupe = null;
+        for (Groupe g : groupes) {
+            if (g.getGroupName().equals(groupName)) {
+                groupe = g;
+                break;
+            }
+        }
+        if (groupe == null) {
+            return "404,G_ADD_M,Groupe inexistant";
+        }
+        Utilisateur cible = findUser(userToAdd);
+        if (cible == null) {
+            return "404,G_ADD_M,Utilisateur a ajouter inexistant";
         }
 
-        // envoie pour la méthode connect
-        if(t[0].equals("Connect")) {
-            envoi(connectUser(t[1],t[2]));
+        // Vérifie les droits
+        boolean autorise = false;
+        for (GroupMember m : membres) {
+            if (m.getIdGroup() == groupe.getIdGroup() && m.getUsername().equals(srcUser) && (m.getRole().equals("OWNER") || m.getRole().equals("ADMIN"))) {
+                autorise = true;
+                break;
+            }
+        }
+        if (!autorise) {
+            return "401,G_ADD_M,Acces refuse";
         }
 
-        // envoie pour la méthode delete
-        if(t[0].equals("Delete")) {
-            envoi(deleteUser(t[1],t[2]));
+        // Vérifie si déjà membre
+        for (GroupMember m : membres) {
+            if (m.getIdGroup() == groupe.getIdGroup() && m.getUsername().equals(userToAdd)) {
+                return "409,G_ADD_M,Utilisateur deja membre";
+            }
         }
-}
-}
-public static void main(String[] args) {
-    try {
-        Server serveur = new Server();
-        serveur.start();
-    } catch (Exception e) {
-        e.printStackTrace();
+        try {
+            GroupMember nouveau = new GroupMember(groupe.getIdGroup(), userToAdd, "MEMBER");
+            nouveau.setSeenJoin(false);
+            membres.add(nouveau);
+            return "200,G_ADD_M,Membre ajoute";
+        } catch (Exception e) {
+            return "405,G_ADD_M,Erreur ajout membre";
+        }
     }
-}
+
+    // Méthode envoie message privée
+    private String Send_Msg(String srcUser, String dstUser, String msg) {
+        Utilisateur src = findUser(srcUser);
+        if (src == null) {
+            return "404,SEND_MSG,Utilisateur source inexistant";
+        }
+        Utilisateur dst = findUser(dstUser);
+        if (dst == null) {
+            return "404,SEND_MSG,Destinataire inexistant";
+        }
+        if (msg == null || msg.trim().isEmpty()) {
+            return "400,SEND_MSG,Message invalide";
+        }
+        try {
+            int idMsg = messages.size() + 1;
+            Message m = new Message(idMsg, srcUser, dstUser, null, "PRIVATE", msg);
+            messages.add(m);
+            return "200,SEND_MSG,Message envoye";
+        } catch (Exception e) {
+            return "405,SEND_MSG,Erreur stockage message";
+        }
+    }
+
+    // Méthode envoie message groupe
+    private String Send_G_Msg(String srcUser, String dstGroup, String msg) {
+        Utilisateur src = findUser(srcUser);
+        if (src == null) {
+            return "404,SEND_MSG,Utilisateur source inexistant";
+        }
+        Groupe dst = findGroupe(dstGroup);
+        if (dst == null) {
+            return "404,SEND_MSG,Destinataire inexistant";
+        }
+        if (msg == null || msg.trim().isEmpty()) {
+            return "400,SEND_MSG,Message invalide";
+        }
+        try {
+            int idMsg = messages.size() + 1;
+            Message m = new Message(idMsg, srcUser, null, dstGroup, "PRIVATE", msg);
+            messages.add(m);
+            return "200,SEND_MSG,Message envoye";
+        } catch (Exception e) {
+            return "405,SEND_MSG,Erreur stockage message";
+        }
+    }
+    
+    private void envoi(String message) throws IOException {
+            byte[] data = message.getBytes();
+            DatagramPacket paquet = new DatagramPacket(data, data.length, recu.getAddress(), recu.getPort()); socket.send(paquet);
+            System.out.println("envoye = " + message);
+        }
+
+    public void start() throws IOException {
+        while (true) {
+            byte[] buffer = new byte[1024];
+            recu = new DatagramPacket(buffer, buffer.length);
+            socket.receive(recu);
+            String s = new String(recu.getData(), 0, recu.getLength());
+                System.out.println("recu = " + s);
+                String[] t = s.split(",");
+
+            // envoie pour la méthode create
+            if(t[0].equals("Create")) {
+                envoi(createUser(t[1],t[2]));
+            }
+
+            // envoie pour la méthode connect
+            if(t[0].equals("Connect")) {
+                envoi(connectUser(t[1],t[2]));
+            }
+
+            // envoie pour la méthode delete
+            if(t[0].equals("Delete")) {
+                envoi(deleteUser(t[1],t[2]));
+            }
+
+            // envoie pour la méthode ajout amis
+            if(t[0].equals("F_add")) {
+                envoi(F_add(t[1],t[2]));
+            }
+
+            // envoie pour la méthode demande amis
+            if(t[0].equals("F_acc")) {
+                envoi(F_acc(t[1],t[2],t[3]));
+            }
+
+            // envoie pour la méthode ajout groupes
+            if(t[0].equals("G_add")) {
+                envoi(G_add(t[1],t[2]));
+            }
+
+            // envoie pour la méthode ajout membres groupes
+            if(t[0].equals("G_add_M")) {
+                envoi(G_add_M(t[1],t[2],t[3]));
+            }
+
+            // envoie pour la méthode messages users
+            if(t[0].equals("Send_Msg")) {
+                envoi(Send_Msg(t[1],t[2],t[3]));
+            }
+
+            // envoie pour la méthode messages users groupes
+            if(t[0].equals("Send_G_Msg")) {
+                envoi(Send_G_Msg(t[1],t[2],t[3]));
+            }
+    }
+    }
+    public static void main(String[] args) {
+        try {
+            Server serveur = new Server();
+            serveur.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
