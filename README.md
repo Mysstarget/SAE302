@@ -215,6 +215,11 @@ Si tout est correct :
 Serveur -> Client : 200,CONNECT,OK,Token;FRIENDS=...;GROUPS=...;MSG=...
 ```
 
+exemple:
+```
+200,CONNECT,OK,Toket;FRIENDS=Pierre,Paul
+```
+
 Après l’envoi des messages privés au client, le serveur peut passer leurs attributs `delivered` à `1`.
 
 Le client traite ensuite les données reçues et affiche l’interface utilisateur.
