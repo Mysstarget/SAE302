@@ -96,10 +96,57 @@ public class Server {
         if (!user.getPassword().equals(password)) {
             return "401,CONNECT,Mot de passe incorrect";
         }
+        try {
+        String friendsList = "";
+        String groupsList = "";
+        String msgList = "";
+
+        // Amis
+        for (Friend f : friends) {
+            if (f.getStatus().equals("ACCEPTED")) {
+                if (f.getSrcUser().equals(username)) {
+                    friendsList += f.getDstUser() + ",";
+                }
+                if (f.getDstUser().equals(username)) {
+                    friendsList += f.getSrcUser() + ",";
+                }
+            }
+        }
+
+        // Groupes
+        for (GroupMember m : membres) {
+            if (m.getUsername().equals(username)) {
+                for (Groupe g : groupes) {
+                    if (g.getIdGroup() == m.getIdGroup()) {
+                        groupsList += g.getGroupName() + ",";
+                    }
+                }
+            }
+        }
+
+        // Messages privés non livrés
+        for (Message m : messages) {
+            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) && !m.isDelivered()) {
+                msgList += m.getSrcUser() + ":" + m.getContent() + ",";
+                m.setDelivered(true);
+            }
+        }
+
+        // Enlever la dernière virgule
+        if (!friendsList.isEmpty()) {
+            friendsList = friendsList.substring(0, friendsList.length() - 1);
+        }
+        if (!groupsList.isEmpty()) {
+            groupsList = groupsList.substring(0, groupsList.length() - 1);
+        }
+        if (!msgList.isEmpty()) {
+            msgList = msgList.substring(0, msgList.length() - 1);
+        }
         user.setConnected(true);
-        String token = generateToken();
-        user.setSessionToken(token);
-        return "200,CONNECT,OK;" + token;
+        return "200,CONNECT,OK" + ";FRIENDS=" + friendsList + ";GROUPS=" + groupsList + ";MSG=" + msgList;
+    } catch (Exception e) {
+        return "402,CONNECT,Erreur récupération données";
+    }
     }
 
     // Méthode Delete
