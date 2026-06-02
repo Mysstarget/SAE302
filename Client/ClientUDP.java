@@ -1,4 +1,4 @@
-package com.mycompany.clientudp;
+package Client;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;

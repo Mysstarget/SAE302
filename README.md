@@ -60,6 +60,8 @@ Exemples d’attributs possibles :
 | `U_Id_user`       | Identifiant de l’utilisateur                                                      |
 | `username`      | Nom d’utilisateur                                                                 |
 | `password` | Mot de passe                                                               |
+| `isConnected` | savoir si l'utilisateur et acctuelement connecter| 
+| `sessionToken` | Token de Session |
 | `is_deleted`    | Permet de désactiver un utilisateur sans supprimer directement toutes les données |
 
 ### Table `Friend`
