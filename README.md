@@ -519,7 +519,7 @@ Luc recevra la demande lors de son prochain appel `Update`.
 ### Commande
 
 ```txt
-F_Acc,Src_User,Dst_User,0or1
+F_Acc,Src_User,Dst_User,0 or 1
 ```
 
 Dans cette commande :
