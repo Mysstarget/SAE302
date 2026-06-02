@@ -212,7 +212,7 @@ Serveur -> Client : 402,CONNECT,Erreur récupération données
 Si tout est correct :
 
 ```txt
-Serveur -> Client : 200,CONNECT,OK;FRIENDS=...;GROUPS=...;MSG=...
+Serveur -> Client : 200,CONNECT,OK,Token;FRIENDS=...;GROUPS=...;MSG=...
 ```
 
 Après l’envoi des messages privés au client, le serveur peut passer leurs attributs `delivered` à `1`.
