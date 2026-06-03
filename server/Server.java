@@ -4,7 +4,6 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.util.ArrayList;
-import java.util.UUID;
 
 public class Server {
 
@@ -38,7 +37,7 @@ public class Server {
     // fonction pour trouver l'utilisateur
     private Utilisateur findUser(String username) {
         for (Utilisateur u : utilisateurs) {
-            if (u.getUsername().equals(username) && !u.isDeleted()) {
+            if (u.getUsername().equals(username)) {
                 return u;
             }
         }
@@ -55,16 +54,38 @@ public class Server {
         return null;
     }
 
-    // Vérifie si un utilisateur a le bon format
+    // fonction qui vérifie si un utilisateur a le bon format
     private boolean isValidUsername(String username) {
         return username.matches("[a-zA-Z0-9_]+");
     }
 
-    // Vérifie si un utilisateur a le bon format
+    // fonction qui vérifie si un groupe a le bon format
     private boolean isValidGroupname(String groupname) {
         return groupname.matches("[a-zA-Z0-9_]+");
     }
 
+    // fonction pour limiter le nombre de message
+    private void limiterMessages(String username) {
+        while (true) {
+            int nb = 0;
+            for (Message m : messages) {
+                if (username.equals(m.getDstUser()) && m.getType().equals("PRIVATE")) {
+                    nb++;
+                }
+            }
+            if (nb <= 4) {
+                break;
+            }
+            for (int i = 0; i < messages.size(); i++) {
+                Message m = messages.get(i);
+                if (username.equals(m.getDstUser()) && m.getType().equals("PRIVATE")) {
+                    messages.remove(i);
+                    break;
+                }
+            }
+        }
+    }
+ 
     // Méthode pour créer un user
     private String createUser(String username, String password) {
         if (!isValidUsername(username)) {
@@ -124,7 +145,7 @@ public class Server {
 
         // Messages privés non livrés
         for (Message m : messages) {
-            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) && !m.isDelivered() || username.equals(m.getSrcUser()) && !m.isDelivered() ) {
+            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) || username.equals(m.getSrcUser())) {
                 msgList += m.getSrcUser() + ":" + m.getDstUser() + ":" + m.getContent() + ",";
                 m.setDelivered(true);
             }
@@ -157,7 +178,7 @@ public class Server {
             return "401,DELETE_USER,Mot de passe incorrect";
         }
         try {
-            user.delete();
+            utilisateurs.remove(user);
             return "200,DELETE_USER,Utilisateur supprime";
         } catch (Exception e) {
             return "405,DELETE_USER,Erreur suppression utilisateur";
@@ -229,8 +250,7 @@ public class Server {
 
     // Méthode ajout groupe
     private String G_add(String srcUser, String groupName) {
-        Utilisateur user = findUser(srcUser);
-        if (user == null) {
+        if (findUser(srcUser) == null) {
             return "404,G_ADD,Utilisateur inexistant";
         }
         if (!isValidGroupname(groupName)) {
@@ -303,21 +323,42 @@ public class Server {
 
     // Méthode envoie message privée
     private String Send_Msg(String srcUser, String dstUser, String msg) {
-        Utilisateur src = findUser(srcUser);
-        if (src == null) {
+        if (findUser(srcUser) == null) {
             return "404,SEND_MSG,Utilisateur source inexistant";
-        }
-        Utilisateur dst = findUser(dstUser);
-        if (dst == null) {
-            return "404,SEND_MSG,Destinataire inexistant";
         }
         if (msg == null || msg.trim().isEmpty()) {
             return "400,SEND_MSG,Message invalide";
         }
         try {
+            // Dans le cas pour tous
+            if (dstUser.equalsIgnoreCase("@everyone")) {
+            for (Friend f : friends) {
+                if (f.getStatus().equals("ACCEPTED")) {
+                    String destinataire = null;
+                    if (f.getSrcUser().equals(srcUser)) {
+                        destinataire = f.getDstUser();
+                    }
+                    else if (f.getDstUser().equals(srcUser)) {
+                        destinataire = f.getSrcUser();
+                    }
+                    if (destinataire != null) {
+                        int idMsg = messages.size() + 1;
+                        Message m = new Message(idMsg, srcUser, destinataire, null, "PRIVATE", msg);
+                        messages.add(m);
+                        limiterMessages(destinataire);
+                    }
+                }
+            }
+            return "200,SEND_MSG,Message envoye a tous les amis";
+        }
+        if (findUser(dstUser) == null) {
+            return "404,SEND_MSG,Destinataire inexistant";
+        }
+        // Dans le cas d'un user destination classique
             int idMsg = messages.size() + 1;
             Message m = new Message(idMsg, srcUser, dstUser, null, "PRIVATE", msg);
             messages.add(m);
+            limiterMessages(dstUser);
             return "200,SEND_MSG,Message envoye";
         } catch (Exception e) {
             return "405,SEND_MSG,Erreur stockage message";
@@ -326,8 +367,7 @@ public class Server {
 
     // Méthode envoie message groupe
     private String Send_G_Msg(String srcUser, String dstGroup, String msg) {
-        Utilisateur src = findUser(srcUser);
-        if (src == null) {
+        if (findUser(srcUser) == null) {
             return "404,SEND_MSG,Utilisateur source inexistant";
         }
         Groupe dst = findGroupe(dstGroup);
@@ -339,7 +379,7 @@ public class Server {
         }
         try {
             int idMsg = messages.size() + 1;
-            Message m = new Message(idMsg, srcUser, null, dstGroup, "PRIVATE", msg);
+            Message m = new Message(idMsg, srcUser, null, dstGroup, "GROUP", msg);
             messages.add(m);
             return "200,SEND_MSG,Message envoye";
         } catch (Exception e) {
@@ -356,7 +396,7 @@ public class Server {
 
         // Messages privés
         for (Message m : messages) {
-            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) && !m.isDelivered()) {
+            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser())) {
                 data += ";MSG=" + m.getSrcUser() + ":" + m.getDstUser() + ":" + m.getContent();
                 m.setDelivered(true);
             }

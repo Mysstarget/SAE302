@@ -6,10 +6,7 @@ public class Utilisateur {
     private String password;
 
     private boolean isConnected;
-    private String sessionToken;
-
-    private boolean isDeleted;
-
+  
     public Utilisateur(int id, String username, String password) {
         this.id = id;
         this.username = username;
@@ -34,22 +31,6 @@ public class Utilisateur {
 
     public void setConnected(boolean connected) {
         isConnected = connected;
-    }
-
-    public String getSessionToken() {
-        return sessionToken;
-    }
-
-    public void setSessionToken(String token) {
-        this.sessionToken = token;
-    }
-
-    public boolean isDeleted() {
-        return isDeleted;
-    }
-
-    public void delete() {
-        this.isDeleted = true;
     }
 
     @Override
