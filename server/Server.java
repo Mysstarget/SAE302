@@ -106,6 +106,20 @@ public class Server {
         }
     }
 
+    private boolean getMGroupe(String username, String groupName) {
+        for (GroupMember gm : membres) {
+            if (gm.getUsername().equals(username)) {
+                for (Groupe g : groupes) {
+                    if (g.getIdGroup() == gm.getIdGroup()
+                            && g.getGroupName().equals(groupName)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     // Méthode connect
     private String connectUser(String username, String password) {
         Utilisateur user = findUser(username);
@@ -119,6 +133,7 @@ public class Server {
         String friendsList = "";
         String groupsList = "";
         String msgList = "";
+        String msgList_G = "";
 
         // Amis
         for (Friend f : friends) {
@@ -143,11 +158,18 @@ public class Server {
             }
         }
 
-        // Messages privés non livrés
+        // Messages privés
         for (Message m : messages) {
-            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) || username.equals(m.getSrcUser())) {
+            if (m.getType().equals("PRIVATE") && (username.equals(m.getDstUser()) || username.equals(m.getSrcUser()))) {
                 msgList += m.getSrcUser() + ":" + m.getDstUser() + ":" + m.getContent() + ",";
                 m.setDelivered(true);
+            }
+        }
+
+        // Messages Group
+        for (Message msg : messages) {
+            if (msg.getType().equals("GROUP") && getMGroupe(username, msg.getDstGroup())) {
+                msgList_G += msg.getSrcUser() + ":" + msg.getDstGroup() + ":" + msg.getContent() + ",";
             }
         }
 
@@ -161,8 +183,11 @@ public class Server {
         if (!msgList.isEmpty()) {
             msgList = msgList.substring(0, msgList.length() - 1);
         }
+        if (!msgList_G.isEmpty()) {
+            msgList_G = msgList_G.substring(0, msgList_G.length() - 1);
+        }
         user.setConnected(true);
-        return "200,CONNECT,OK" + ";FRIENDS=" + friendsList + ";GROUPS=" + groupsList + ";MSG=" + msgList;
+        return "200,CONNECT,OK" + ";FRIENDS=" + friendsList + ";GROUPS=" + groupsList + ";MSG=" + msgList + ";MSG_G=" + msgList_G;
     } catch (Exception e) {
         return "402,CONNECT,Erreur récupération données";
     }
@@ -435,7 +460,7 @@ public class Server {
             if (gm.getUsername().equals(username)) {
                 int dernierMsg = gm.getLastSeenMsgId();
                 for (Message msg : messages) {
-                    if (msg.getType().equals("GROUP") && msg.getIdMsg() > dernierMsg) {
+                    if (msg.getType().equals("GROUP") && getMGroupe(username, msg.getDstGroup()) && msg.getIdMsg() > dernierMsg) {
                         data += ";GROUP_MSG=" + msg.getDstGroup() + ":" + msg.getSrcUser() + ":" + msg.getContent();
                         gm.setLastSeenMsgId(msg.getIdMsg());
                     }
