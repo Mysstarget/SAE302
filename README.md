@@ -44,6 +44,7 @@ ou
 | `404` | Ressource inexistante                      |
 | `405` | Erreur serveur / erreur base de données    |
 | `409` | Conflit, ressource déjà existante          |
+| `410` | Limite user 4 max                          |
 
 ---
 
@@ -60,9 +61,6 @@ Exemples d’attributs possibles :
 | `U_Id_user`       | Identifiant de l’utilisateur                                                      |
 | `username`      | Nom d’utilisateur                                                                 |
 | `password` | Mot de passe                                                               |
-| `isConnected` | savoir si l'utilisateur et acctuelement connecter| 
-| `sessionToken` | Token de Session |
-| `is_deleted`    | Permet de désactiver un utilisateur sans supprimer directement toutes les données |
 
 ### Table `Friend`
 
