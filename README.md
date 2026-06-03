@@ -44,6 +44,7 @@ ou
 | `404` | Ressource inexistante                      |
 | `405` | Erreur serveur / erreur base de données    |
 | `409` | Conflit, ressource déjà existante          |
+| `410` | Limite user 4 max                          |
 
 ---
 
