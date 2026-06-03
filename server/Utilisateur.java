@@ -14,10 +14,6 @@ public class Utilisateur {
         this.id = id;
         this.username = username;
         this.password = password;
-
-        this.isConnected = false;
-        this.sessionToken = "";
-        this.isDeleted = false;
     }
 
     public int getId() {

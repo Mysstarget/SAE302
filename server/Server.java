@@ -55,11 +55,6 @@ public class Server {
         return null;
     }
 
-    // génère un token
-    private String generateToken() {
-        return UUID.randomUUID().toString();
-    }
-
     // Vérifie si un utilisateur a le bon format
     private boolean isValidUsername(String username) {
         return username.matches("[a-zA-Z0-9_]+");
@@ -77,6 +72,9 @@ public class Server {
         }
         if (findUser(username)!=null) {
             return "409,CREATE_USER,Utilisateur deja existant";
+        }
+        if (utilisateurs.size()>=4) {
+            return "410,LIMITE,4 utilisateur maximum";
         }
         try {
             Utilisateur user = new Utilisateur(utilisateurs.size() + 1, username, password);
@@ -126,8 +124,8 @@ public class Server {
 
         // Messages privés non livrés
         for (Message m : messages) {
-            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) && !m.isDelivered()) {
-                msgList += m.getSrcUser() + ":" + m.getContent() + ",";
+            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) && !m.isDelivered() || username.equals(m.getSrcUser()) && !m.isDelivered() ) {
+                msgList += m.getSrcUser() + ":" + m.getDstUser() + ":" + m.getContent() + ",";
                 m.setDelivered(true);
             }
         }
@@ -348,6 +346,68 @@ public class Server {
             return "405,SEND_MSG,Erreur stockage message";
         }
     }
+
+    // Méthode Update
+    private String Update(String username) {
+        if (findUser(username) == null) {
+            return "404,UPDATE,Utilisateur inexistant";
+        }
+        String data = "";
+
+        // Messages privés
+        for (Message m : messages) {
+            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) && !m.isDelivered()) {
+                data += ";MSG=" + m.getSrcUser() + ":" + m.getDstUser() + ":" + m.getContent();
+                m.setDelivered(true);
+            }
+        }
+
+        // Demandes d'amis reçues
+        for (Friend f : friends) {
+            if (f.getDstUser().equals(username) && f.getStatus().equals("PENDING") && !f.isSeenDst()) {
+                data += ";FRIEND_REQUEST=" + f.getSrcUser();
+                f.setSeenDst(true);
+            }
+        }
+
+        // Réponses aux demandes d'amis
+        for (Friend f : friends) {
+            if (f.getSrcUser().equals(username) && !f.isSeenSrc() && (f.getStatus().equals("ACCEPTED") || f.getStatus().equals("REFUSED"))) {
+                data += ";FRIEND_RESPONSE=" + f.getDstUser() + ":" + f.getStatus();
+                f.setSeenSrc(true);
+            }
+        }
+
+        // Nouveaux groupes
+        for (GroupMember m : membres) {
+            if (m.getUsername().equals(username) && !m.isSeenJoin()) {
+                for (Groupe g : groupes) {
+                    if (g.getIdGroup() == m.getIdGroup()) {
+                        data += ";GROUP=" + g.getGroupName();
+                        m.setSeenJoin(true);
+                    }
+                }
+            }
+        }
+
+        // Messages de groupe
+        for (GroupMember gm : membres) {
+            if (gm.getUsername().equals(username)) {
+                int dernierMsg = gm.getLastSeenMsgId();
+                for (Message msg : messages) {
+                    if (msg.getType().equals("GROUP") && msg.getIdMsg() > dernierMsg) {
+                        data += ";GROUP_MSG=" + msg.getDstGroup() + ":" + msg.getSrcUser() + ":" + msg.getContent();
+                        gm.setLastSeenMsgId(msg.getIdMsg());
+                    }
+                }
+            }
+        }
+
+        if (data.isEmpty()) {
+            return "200,UPDATE,NO_DATA";
+        }
+        return "200,UPDATE,DATA" + data;
+    }
     
     private void envoi(String message) throws IOException {
             byte[] data = message.getBytes();
@@ -407,6 +467,11 @@ public class Server {
             // envoie pour la méthode messages users groupes
             if(t[0].equals("Send_G_Msg")) {
                 envoi(Send_G_Msg(t[1],t[2],t[3]));
+            }
+
+            // Update
+            if(t[0].equals("Update")) {
+                envoi(Update(t[1]));
             }
     }
     }
