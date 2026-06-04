@@ -105,7 +105,8 @@ public class Server {
             return "405,CREATE_USER,Erreur lors de la creation";
         }
     }
-
+    
+    // fonction vérifie membre
     private boolean getMGroupe(String username, String groupName) {
         for (GroupMember gm : membres) {
             if (gm.getUsername().equals(username)) {
@@ -203,6 +204,29 @@ public class Server {
             return "401,DELETE_USER,Mot de passe incorrect";
         }
         try {
+            // Delete friend
+            for (int i = friends.size() - 1; i >= 0; i--) {
+                Friend f = friends.get(i);
+                if (f.getSrcUser().equals(username) || f.getDstUser().equals(username)) {
+                    friends.remove(i);
+                }
+            }
+            // Delete message
+            for (int i = messages.size() - 1; i >= 0; i--) {
+                Message m = messages.get(i);
+                if (username.equals(m.getSrcUser()) || username.equals(m.getDstUser())) {
+                    messages.remove(i);
+                }
+            }
+            // Delete membre groupe
+            for (int i = membres.size() - 1; i >= 0; i--) {
+                GroupMember gm = membres.get(i);
+
+                if (gm.getUsername().equals(username)) {
+                    membres.remove(i);
+                }
+            }
+
             utilisateurs.remove(user);
             return "200,DELETE_USER,Utilisateur supprime";
         } catch (Exception e) {
@@ -421,7 +445,7 @@ public class Server {
 
         // Messages privés
         for (Message m : messages) {
-            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser())) {
+            if (m.getType().equals("PRIVATE") && username.equals(m.getDstUser()) && !m.isDelivered()) {
                 data += ";MSG=" + m.getSrcUser() + ":" + m.getDstUser() + ":" + m.getContent();
                 m.setDelivered(true);
             }
@@ -537,7 +561,7 @@ public class Server {
             // Update
             if(t[0].equals("Update")) {
                 envoi(Update(t[1]));
-            }
+            } 
     }
     }
     public static void main(String[] args) {

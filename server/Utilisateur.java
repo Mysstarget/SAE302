@@ -4,7 +4,6 @@ public class Utilisateur {
     private int id;
     private String username;
     private String password;
-
     private boolean isConnected;
   
     public Utilisateur(int id, String username, String password) {
